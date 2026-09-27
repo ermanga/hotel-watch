@@ -1,0 +1,35 @@
+name: hotel-watch
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub 實際上約每 5–15 分鐘執行一次
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hotel-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Taipei
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python hotel_watch.py
+      # 把「上次看到的房況」存回 repo，下次才知道是不是新釋出的房
+      - name: save state
+        run: |
+          git config user.name "hotel-watch-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state.json
+          git diff --cached --quiet || (git commit -m "update state" && git push)

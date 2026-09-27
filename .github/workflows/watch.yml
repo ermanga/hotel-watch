@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/5 * * * *"   # GitHub 實際上約每 5–15 分鐘執行一次
   workflow_dispatch:
+    inputs:
+      test_notify:
+        description: "只發一則 Telegram 測試訊息"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python hotel_watch.py
+      - run: python hotel_watch.py ${{ inputs.test_notify && '--test-notify' || '' }}
       # 把「上次看到的房況」存回 repo，下次才知道是不是新釋出的房
       - name: save state
         run: |

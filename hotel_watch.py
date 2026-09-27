@@ -251,8 +251,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--date", help="改查別的日期（測試用），格式 YYYY-MM-DD")
+    ap.add_argument("--test-notify", action="store_true", help="只發一則 Telegram 測試訊息")
     args = ap.parse_args()
     cfg = load_json(CONFIG, {})
+    if args.test_notify:
+        return telegram(cfg, "🧪 雲端測試：GitHub Actions 可以正常發通知給你。")
     if args.date and not args.dry_run:
         sys.exit("--date 只能搭配 --dry-run 使用")
     if not args.date and dt.date.today() > dt.date.fromisoformat(cfg["target_night"]):

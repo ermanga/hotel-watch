@@ -3,12 +3,10 @@
     "2026-10-24|hanaan|官網": false,
     "2026-10-24|hanaan|樂天": false,
     "2026-10-24|hanaan|じゃらん": false,
-    "2026-10-24|nagomi|じゃらん": false,
     "2026-10-25|hanaan|官網": true,
     "2026-10-25|hanaan|樂天": true,
-    "2026-10-25|hanaan|じゃらん": true,
     "2026-10-25|nagomi|じゃらん": false
   },
-  "error_streak": 0,
+  "error_streak": 1,
   "last_heartbeat": "2026-10-02"
 }

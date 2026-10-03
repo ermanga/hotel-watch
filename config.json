@@ -1,5 +1,7 @@
 {
-  "target_night": "2026-10-24",
-  "also_check_nights": ["2026-10-25"],
+  "target_night": "2026-10-25",
+  "also_check_nights": [],
+  "hotels": ["hanaan"],
+  "meals_required": true,
   "adults": 2
 }

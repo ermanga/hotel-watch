@@ -87,10 +87,17 @@ def check_rakuten(hotel_id, night, adults):
     t = page_text(fetch(url))
     if "ご指定の条件での空室が見つかりませんでした" in t:
         return {"available": False, "detail": "滿房", "url": url}
-    rooms = [int(x) for x in re.findall(r"残り(\d+)部屋", t)]
-    prices = [int(x.replace(",", "")) for x in re.findall(r"合計\n([\d,]+)\n円", t)]
-    if not prices and not rooms:
+    # 每個「房型×方案」區塊都以「食事\n」開頭，接著是餐點、空房或價格
+    segs = [s for s in t.split("食事\n")[1:] if "空室なし" in s[:400] or "合計" in s]
+    if not segs:
         raise RuntimeError("樂天頁面結構無法辨識（可能被擋或改版）")
+    if MEALS_REQUIRED:
+        segs = [s for s in segs if s.lstrip().startswith("朝食あり 夕食あり")]
+    segs = [s for s in segs if "空室なし" not in s[:400]]
+    rooms = [int(x) for s in segs for x in re.findall(r"残り(\d+)部屋", s)[:1]]
+    prices = [int(x.replace(",", "")) for s in segs for x in re.findall(r"合計\n([\d,]+)\n円", s)[:1]]
+    if not segs:
+        return {"available": False, "detail": "含早晚餐方案滿房", "url": url}
     detail = f"{len(prices)} 個方案有房"
     if prices:
         detail += f"，最低 ¥{min(prices):,}（2人合計）"
@@ -109,11 +116,16 @@ def check_jalan(yad_id, night, adults):
     m = re.search(r"(\d+)\n?件の宿泊プランがありました", t)
     if not m:
         raise RuntimeError("じゃらん頁面結構無法辨識（可能被擋或改版）")
-    detail = f"{m.group(1)} 個方案有房"
-    prices = [int(x.replace(",", "")) for x in re.findall(r"\n([\d,]{5,})\n円\n", t)]
+    segs = t.split("食事：\n")[1:]
+    if MEALS_REQUIRED:
+        segs = [s for s in segs if s.lstrip().startswith("朝・夕")]
+        if not segs:
+            return {"available": False, "detail": "含早晚餐方案滿房", "url": url}
+    detail = f"{len(segs) if MEALS_REQUIRED else m.group(1)} 個方案有房"
+    prices = [int(x.replace(",", "")) for s in segs for x in re.findall(r"\n([\d,]{5,})\n円\n", s)]
     if prices:
         detail += f"，最低 ¥{min(prices):,}（2人合計）"
-    if "空室わずか" in t:
+    if any("空室わずか" in s for s in segs):
         detail += "，空室わずか"
     return {"available": True, "detail": detail, "url": url}
 
@@ -133,7 +145,9 @@ def check_econcierge(hotel_id, night, adults):
         rid = rt["room_type"]["room_type_id"]
         name = next((l["name"] for l in rt["room_type"].get("localizations", [])
                      if l.get("lang") == "ja"), str(rid))
-        for p in rt["plans"]:
+        plans = [p for p in rt["plans"] if p.get("breakfast") and p.get("dinner")] \
+            if MEALS_REQUIRED else rt["plans"]
+        for p in plans:
             inv = json.loads(fetch(
                 f"{ECON_API}/hotels/{hotel_id}/plans/{p['plan_id']}/room-type-inventories/{rid}"
                 f"?min_calendar_date={d}&max_calendar_date={nxt}&guests_count={adults}", hdr))
@@ -147,10 +161,12 @@ def check_econcierge(hotel_id, night, adults):
             break
     url = f"https://app.e-concierge.net/v3a/hotels/{hotel_id}"
     if not found:
-        return {"available": False, "detail": "滿房", "url": url}
+        return {"available": False, "detail": "含早晚餐方案滿房" if MEALS_REQUIRED else "滿房", "url": url}
     parts = [f"{n}（剩{q}間" + (f"，¥{a:,}起" if a else "") + "）" for n, q, a in found]
     return {"available": True, "detail": "；".join(parts), "url": url}
 
+
+MEALS_REQUIRED = False  # 由 config.json 的 "meals_required" 設定
 
 SOURCES = [
     ("hanaan", "官網", lambda h, n, a: check_econcierge(h["econcierge"], n, a)),
@@ -177,6 +193,10 @@ def telegram(cfg, text):
 
 # ---------------------------------------------------------------- main
 def run(args, cfg):
+    global MEALS_REQUIRED, SOURCES
+    MEALS_REQUIRED = cfg.get("meals_required", False)
+    if cfg.get("hotels"):
+        SOURCES = [s for s in SOURCES if s[0] in cfg["hotels"]]
     adults = cfg.get("adults", 2)
     target = dt.date.fromisoformat(args.date or cfg["target_night"])
     also = [dt.date.fromisoformat(x) for x in cfg.get("also_check_nights", [])] if not args.date else []
@@ -208,7 +228,8 @@ def run(args, cfg):
             if was and k in results and not results[k]["available"] and k.startswith(str(target))]
 
     if newly:
-        lines = [f"🚨 {target:%m/%d} 有空房了！快去訂！", ""]
+        lines = [f"🚨 {target:%m/%d} 有空房了！快去訂！"
+                 + ("（含早晚餐）" if MEALS_REQUIRED else ""), ""]
         for k in newly:
             _, hkey, src = k.split("|")
             r = results[k]

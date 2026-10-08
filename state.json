@@ -1,8 +1,9 @@
 {
   "available": {
     "2026-10-25|hanaan|官網": false,
-    "2026-10-25|hanaan|樂天": false
+    "2026-10-25|hanaan|樂天": false,
+    "2026-10-25|hanaan|じゃらん": false
   },
-  "error_streak": 3,
+  "error_streak": 0,
   "last_heartbeat": "2026-10-08"
 }
